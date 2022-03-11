@@ -18,7 +18,7 @@ pipeline {
         stage('create instances on google cloud') {
             agent {
                 docker {
-                    image "gcr.io/paper-prod/paper-k8s-deployment"
+                    image "google/cloud-sdk:latest"
                 }
             }
             steps {
@@ -42,7 +42,7 @@ pipeline {
         stage('pull and run docker in compute engine') {
             agent {
                 docker {
-                    image "gcr.io/paper-prod/paper-k8s-deployment"
+                    image "google/cloud-sdk:latest"
                 }
             }
             steps {
@@ -69,7 +69,7 @@ pipeline {
         stage('stop instances on google cloud') {
             agent {
                 docker {
-                    image "gcr.io/paper-prod/paper-k8s-deployment"
+                    image "google/cloud-sdk:latest"
                 }
             }
             steps {
@@ -83,7 +83,7 @@ pipeline {
         stage('delete instances on google cloud') {
             agent {
                 docker {
-                    image "gcr.io/paper-prod/paper-k8s-deployment"
+                    image "google/cloud-sdk:latest"
                 }
             }
             steps {
@@ -97,26 +97,25 @@ pipeline {
 }
 
 def getGoogleServiceAccount() {
-    return "jenkins-development-account"
+    return "my-service-account"
 }
 def getGCPProject() {
-    return "paper-development"
+    return "my-project"
 }
 def getZone() {
     return "asia-southeast2-a"
 }
 def getVMName() {
-    return "paper-cypress-report-response-query-api"
+    return "my-vmname"
 }
 def getMachineType() {
-    return "e2-highcpu-16"
-    // return "e2-medium"
+    return "e2-medium"
 }
 def getSubnetName() {
-    return "subnet-paper-app-dev-jkt"
+    return "default"
 }
 def getNetworkTags() {
-    return "paper-dev-fwrule-ssh"
+    return "fwrule-ssh"
 }
 def getImageFamily() {
     return "cos-stable"
