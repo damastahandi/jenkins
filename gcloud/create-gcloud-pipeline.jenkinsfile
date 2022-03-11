@@ -1,0 +1,126 @@
+pipeline {
+    agent any 
+
+    environment {
+        CONTAINER_NAME = "nginx"
+        VM_NAME = getVMName()
+        GOOGLE_SERVICE_ACCOUNT = getGoogleServiceAccount()
+        GCP_PROJECT = getGCPProject()
+        ZONE = getZone()
+        MACHINE_TYPE = getMachineType()
+        SUBNET_NAME = getSubnetName()
+        NETWORK_TAGS = getNetworkTags()
+        IMAGE_FAMILY = getImageFamily()
+        IMAGE_PROJECT = getImageProject()
+    }
+
+    stages {
+        stage('create instances on google cloud') {
+            agent {
+                docker {
+                    image "gcr.io/paper-prod/paper-k8s-deployment"
+                }
+            }
+            steps {
+                withCredentials([file(credentialsId: "${env.GOOGLE_SERVICE_ACCOUNT}", variable: 'GC_KEY')]) {
+                    sh "gcloud auth activate-service-account --key-file=${GC_KEY} --project=${env.GCP_PROJECT}"
+                    sh "gcloud compute instances create ${env.VM_NAME} \
+                        --machine-type=${env.MACHINE_TYPE} \
+                        --zone=${env.ZONE} \
+                        --tags=${env.NETWORK_TAGS} \
+                        --subnet=${env.SUBNET_NAME} \
+                        --create-disk size=20GB,type=pd-ssd \
+                        --image-family=${env.IMAGE_FAMILY} \
+                        --image-project=${env.IMAGE_PROJECT} \
+                        --metadata=enable-oslogin=TRUE \
+                        --preemptible"
+                    sleep 30
+                    }
+                }
+        }
+
+        stage('pull and run docker in compute engine') {
+            agent {
+                docker {
+                    image "gcr.io/paper-prod/paper-k8s-deployment"
+                }
+            }
+            steps {
+                withCredentials([file(credentialsId: "${env.GOOGLE_SERVICE_ACCOUNT}", variable: 'GC_KEY')]) {
+                    script {
+                        try {
+                            sh "gcloud auth activate-service-account --key-file=${GC_KEY} --project=${env.GCP_PROJECT}"
+                            sh "gcloud compute ssh ${env.VM_NAME} \
+                                --strict-host-key-checking=no \
+                                --zone=${env.ZONE} \
+                                --command='sudo docker pull nginx:stable-alpine'"
+                            sh "gcloud compute ssh ${env.VM_NAME} \
+                                --strict-host-key-checking=no \
+                                --zone=${env.ZONE} \
+                                --command='sudo docker run --restart always -d --name ${env.CONTAINER_NAME} nginx:stable-alpine'"
+                        } catch (exc) {
+
+                        }
+                    }                    
+                }
+            }
+        }
+
+        stage('stop instances on google cloud') {
+            agent {
+                docker {
+                    image "gcr.io/paper-prod/paper-k8s-deployment"
+                }
+            }
+            steps {
+                withCredentials([file(credentialsId: "${env.GOOGLE_SERVICE_ACCOUNT}", variable: 'GC_KEY')]) {
+                    sh "gcloud auth activate-service-account --key-file=${GC_KEY} --project=${env.GCP_PROJECT}"
+                    sh "gcloud compute instances stop ${env.VM_NAME} --zone=${env.ZONE}"
+                    }
+                }
+        }
+
+        stage('delete instances on google cloud') {
+            agent {
+                docker {
+                    image "gcr.io/paper-prod/paper-k8s-deployment"
+                }
+            }
+            steps {
+                withCredentials([file(credentialsId: "${env.GOOGLE_SERVICE_ACCOUNT}", variable: 'GC_KEY')]) {
+                    sh "gcloud auth activate-service-account --key-file=${GC_KEY} --project=${env.GCP_PROJECT}"
+                    sh "gcloud compute instances delete ${env.VM_NAME} --zone=${env.ZONE} --quiet"
+                    }
+                }
+        }
+    }
+}
+
+def getGoogleServiceAccount() {
+    return "jenkins-development-account"
+}
+def getGCPProject() {
+    return "paper-development"
+}
+def getZone() {
+    return "asia-southeast2-a"
+}
+def getVMName() {
+    return "paper-cypress-report-response-query-api"
+}
+def getMachineType() {
+    return "e2-highcpu-16"
+    // return "e2-medium"
+}
+def getSubnetName() {
+    return "subnet-paper-app-dev-jkt"
+}
+def getNetworkTags() {
+    return "paper-dev-fwrule-ssh"
+}
+def getImageFamily() {
+    return "cos-stable"
+}
+def getImageProject() {
+    return "cos-cloud"
+}
